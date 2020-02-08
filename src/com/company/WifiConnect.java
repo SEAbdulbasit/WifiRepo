@@ -11,7 +11,8 @@ import java.util.logging.Logger;
 
 class WiFiViewModel {
 
-    private static Logger logger = LogManager.getLogManager().getLogger(DriveModel.class.getName());
+   // private Logger logger;//= LogManager.getLogManager().getLogger("DriveModel");
+    Logger logger;// = LogManager.getLogManager().getLogger(WiFiViewModel.class.getName());
 
     private String SubStringToMatchControllerAPName = "smc-";
     private byte[] s1 = {0x22, 0x67, 0x5b, 0x4c, 0x79, 0x4b, 0x6d, 0x5b, 0x78, 0x3c, 0x5e, 0x29, 0x40, 0x4d, 0x4f, 0x51, 0x50, 0x6c, 0x77, 0x4d, 0x54, 0x40, 0x32, 0x7d, 0x48, 0x71, 0x73, 0x52, 0x74, 0x4d};
@@ -79,7 +80,7 @@ class WiFiViewModel {
     /// <summary>
 /// Set settings for Both/Controller/Inverter
 /// </summary>
-    public int deviceType;
+    public int deviceType = 0;
     private int _deviceType = 0;
 
     public int getDeviceType() {
@@ -150,21 +151,10 @@ class WiFiViewModel {
         }
     }
 
-    private InetAddress address;
-
-    public InetAddress getAddress() {
-        return _address;
-    }
-
-    public void setAddress(InetAddress address) {
-        this._address = address;
-    }
-
-
     private DriveModel _drive = new DriveModel();
 
     public WiFiViewModel() {
-
+        logger = Logger.getLogger(WiFiViewModel.class.getName());
     }
 
     public enum Mode {
@@ -181,7 +171,7 @@ class WiFiViewModel {
 
     public void attemptConnect(Mode mode, String dspData) {
         //Attempt to login to port 5000
-        InetAddress address = this.address;
+        InetAddress address = this._address;
         String msg;
         Socket tcpClient = new Socket();
 

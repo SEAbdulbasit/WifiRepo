@@ -1,6 +1,8 @@
 package com.company;
 
 
+import javax.crypto.Cipher;
+import javax.crypto.NoSuchPaddingException;
 import javax.sound.sampled.AudioFormat;
 import java.io.IOException;
 import java.io.InputStream;
@@ -8,6 +10,7 @@ import java.io.OutputStream;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.net.SocketException;
+import java.security.NoSuchAlgorithmException;
 import java.util.Random;
 import java.util.concurrent.Semaphore;
 
@@ -47,6 +50,19 @@ public class EthConn {
     //  AesCryptoServiceProvider aes;
     // private RijndaelManaged crypt = new RijndaelManaged();
     // private EndPoint _contEndPoint;
+
+    Cipher cipher;
+
+    {
+        try {
+            cipher = Cipher.getInstance("DESede/CBC/PKCS5Padding");
+        } catch (NoSuchAlgorithmException e) {
+            e.printStackTrace();
+        } catch (NoSuchPaddingException e) {
+            e.printStackTrace();
+        }
+    }
+
     private boolean _isConnected = false;
     public boolean isConnected;
 
