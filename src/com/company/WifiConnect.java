@@ -9,7 +9,7 @@ import java.util.Arrays;
 import java.util.logging.LogManager;
 import java.util.logging.Logger;
 
-public class WiFiViewModel {
+class WiFiViewModel {
 
     private static Logger logger = LogManager.getLogManager().getLogger(DriveModel.class.getName());
 
