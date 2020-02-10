@@ -2,6 +2,8 @@ package com.company;
 
 
 import javax.sound.sampled.AudioFormat;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
 import java.net.*;
 import java.nio.Buffer;
 import java.nio.charset.StandardCharsets;
@@ -11,7 +13,7 @@ import java.util.logging.Logger;
 
 class WiFiViewModel {
 
-   // private Logger logger;//= LogManager.getLogManager().getLogger("DriveModel");
+    // private Logger logger;//= LogManager.getLogManager().getLogger("DriveModel");
     Logger logger;// = LogManager.getLogManager().getLogger(WiFiViewModel.class.getName());
 
     private String SubStringToMatchControllerAPName = "smc-";
@@ -33,11 +35,19 @@ class WiFiViewModel {
     /// The access point SSID to connect to.
     /// </summary>
     public String CurrentAccessPoint;
-    private String _CurrentAccessPoint;
+    public String CurrentAccessPointKey;
+
+
+    public void setCurrentAccessPointKey(String currentAccessPointKey) {
+        CurrentAccessPointKey = currentAccessPointKey;
+    }
+
+    public String getCurrentAccessPointKey() {
+        return CurrentAccessPointKey;
+    }
 
     public void setCurrentAccessPoint(String currentAccessPoint) {
-        if (_CurrentAccessPoint == currentAccessPoint) return;
-        _CurrentAccessPoint = currentAccessPoint;
+        CurrentAccessPoint = currentAccessPoint;
     }
 
     public String getCurrentAccessPoint() {
@@ -48,104 +58,72 @@ class WiFiViewModel {
     /// <summary>
     /// The key for the access point to connect to.
     /// </summary>
-    public String CurrentAccessPointKey;
-    private String _CurrentAccessPointKey;
 
-    public String getCurrentAccessPointKey() {
-        return _CurrentAccessPointKey;
-    }
-
-    public void setCurrentAccessPointKey(String currentAccessPointKey) {
-        if (_CurrentAccessPointKey == currentAccessPointKey) return;
-        _CurrentAccessPoint = currentAccessPointKey;
-    }
 
     /// <summary>
 /// Wether or not to use the default password
 /// </summary>
-    public int passwordSet;
-    private int _passwordSet = 0;
-
+    public int passwordSet = 0;
 
     public int getPasswordSet() {
-        return _passwordSet;
+        return passwordSet;
     }
 
     public void setPasswordSet(int passwordSet) {
-        if (_passwordSet == passwordSet) return;
-        _passwordSet = passwordSet;
+        this.passwordSet = passwordSet;
     }
-
 
     /// <summary>
 /// Set settings for Both/Controller/Inverter
 /// </summary>
     public int deviceType = 0;
-    private int _deviceType = 0;
 
     public int getDeviceType() {
-        return _deviceType;
+        return deviceType;
     }
 
     public void setDeviceType(int deviceType) {
-        if (_deviceType == deviceType) return;
-        _deviceType = deviceType;
+        this.deviceType = deviceType;
     }
-
-    private int _logIndex;
 
     public int logIndex;
 
     public int getLogIndex() {
-        return _logIndex;
+        return logIndex;
     }
 
     public void setLogIndex(int logIndex) {
-        if (_logIndex == logIndex)
-            return;
-        _logIndex = logIndex;
+        this.logIndex = logIndex;
     }
-
 
     /// <summary>
 /// Wether or not to use the default password
 /// </summary>
     public String password;
 
-
-    private String _password = "";
-
     public String getPassword() {
-        return _password;
+        return password;
     }
 
     public void setPassword(String password) {
-        if (_password == password)
-            return;
-        _password = password;
-
+        this.password = password;
     }
 
-
-    private String _info_message = "";
     public String info_message;
 
-    public String getinfo_message() {
-        return _info_message;
+    public String getInfo_message() {
+        return info_message;
     }
 
-    public void setinfo_message(String info_message) {
-        if (_info_message != info_message) {
-            _info_message = info_message;
-        }
+    public void setInfo_message(String info_message) {
+        this.info_message = info_message;
     }
 
-
-    private InetAddress _address;
+    private InetAddress address;
 
     {
         try {
-            _address = InetAddress.getByName("192.168.4.1");
+            address = InetAddress.getByName("192.168.4.1");
         } catch (UnknownHostException e) {
             e.printStackTrace();
         }
@@ -171,7 +149,7 @@ class WiFiViewModel {
 
     public void attemptConnect(Mode mode, String dspData) {
         //Attempt to login to port 5000
-        InetAddress address = this._address;
+        InetAddress address = this.address;
         String msg;
         Socket tcpClient = new Socket();
 
@@ -181,23 +159,17 @@ class WiFiViewModel {
         int port = 5000;
         boolean success = false;
         //IAsyncResult result;
-        SocketAddress sockaddr = new InetSocketAddress(address, port);
-
-
+        ServerSocket serverSocket;
         try {
             if (!success) {
                 if (deviceType == 0 || deviceType == 1) {
-                    port = 5500;
+                    serverSocket = new ServerSocket(port, 0, address);
+                    Socket client = serverSocket.accept();
                     logger.info("WiFi: Checking Port " + port);
-                    //result = tcpClient.BeginConnect("192.168.4.1", port, null, null);
-                    //success = result.AsyncWaitHandle.WaitOne(2000);
-                    Thread.sleep(1000);
-                    tcpClient.connect(sockaddr);
+                    BufferedReader br = new BufferedReader(new InputStreamReader(client.getInputStream()));
+                    String str = br.readLine();
 
-
-                    //tcpClient.Connect("192.168.4.1", port);
-                    success = tcpClient.isConnected();
-                    //tcpClient.EndConnect(result);
+                    System.out.println("Response from the server" + str);
                 }
             }
         } catch (Exception e) {

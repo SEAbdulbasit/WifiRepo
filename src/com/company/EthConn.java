@@ -3,40 +3,50 @@ package com.company;
 
 import javax.crypto.Cipher;
 import javax.crypto.NoSuchPaddingException;
-import javax.sound.sampled.AudioFormat;
+import javax.crypto.SecretKey;
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.PBEKeySpec;
+import javax.crypto.spec.SecretKeySpec;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.UnsupportedEncodingException;
 import java.net.InetAddress;
+import java.net.ServerSocket;
 import java.net.Socket;
-import java.net.SocketException;
+import java.nio.charset.StandardCharsets;
+import java.security.Key;
+import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.Random;
+import java.security.spec.KeySpec;
+import java.util.Arrays;
+import java.util.Base64;
 import java.util.concurrent.Semaphore;
 
 public class EthConn {
     private int commandId = 0;
     public static int size = 1024;
-    private String _usr;
     private int comm_version = -1;
     public String username;
-    private String _pwd;
     public String password;
 
+    ServerSocket serverSocket;
+
     public String getUsername() {
-        return _usr;
+        return username;
     }
 
     public void setUsername(String username) {
-        this._usr = username;
+        this.username = username;
     }
 
     public String getPassword() {
-        return _pwd;
+        return password;
     }
 
     public void setPassword(String password) {
-        this._pwd = password;
+        this.password = password;
     }
 
     private Semaphore commSemaphore = new Semaphore(1);
@@ -85,31 +95,29 @@ public class EthConn {
     }
 
 
-    private InetAddress _address;
     public InetAddress address;
     Socket socket;
 
     public InetAddress getAddress() {
-        return _address;
+        return address;
     }
 
     public void setAddress(InetAddress address) throws IOException {
         isConnected = false;
-        this._address = address;
-        socket = new Socket(_address, port);
+        this.address = address;
+        socket = new Socket(address, port);
     }
 
-    private int _port = 5000;
     public int port;
 
     public int getPort() {
-        return _port;
+        return port;
     }
 
     public void setPort(int port) {
-        this._port = port;
+        this.port = port;
         try {
-            socket = new Socket(_address, port);
+            socket = new Socket(address, port);
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -144,13 +152,14 @@ public class EthConn {
     }
 
     public EthConn(String username, String password, InetAddress address, int port) {
-        _address = address;
-        _usr = username;
-        _pwd = password;
-        _port = port;
+        this.address = address;
+        this.username = username;
+        this.password = password;
+        this.port = port;
+
         if (address != null) {
             try {
-                socket = new Socket(_address, _port);
+                serverSocket = new ServerSocket(port, 0, address);
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -158,7 +167,7 @@ public class EthConn {
     }
 
     public void ForceRelease() {
-        if (commSemaphore.availablePermits() == 0) {
+        if (commSemaphore.getQueueLength() == 0) {
             commSemaphore.release();
         }
     }
@@ -188,8 +197,10 @@ public class EthConn {
         isConnected = true;
 
         try {
-            _client = new Socket(_address, _port);
-            _client.setSoTimeout(200);// = 200;
+
+            serverSocket = new ServerSocket(port, 0, address);
+            serverSocket.setSoTimeout(200);// = 200;
+            socket = serverSocket.accept();
         } catch (Exception e) {
             e.printStackTrace();
             isConnected = false;
@@ -200,7 +211,7 @@ public class EthConn {
         double rng = Math.random();
         byte[] data = new byte[16];
         data = doubletoBytes(rng);
-        String salt1 = data.toString();//Convert.ToBase64String(data);
+        String salt1 = new String(data, StandardCharsets.UTF_8);//Convert.ToBase64String(data);
         String salt = "";
         int attempts = 0;
 
@@ -235,7 +246,18 @@ public class EthConn {
         String usrMsg = salt.substring(8, 8) + _usr + salt.substring(16, 8);
         byte[] _cUserName = _hasher.ComputeHash(Encoding.UTF8.GetBytes(usrMsg));
 */
-        byte[] _cUserName = doubletoBytes(1212121);
+        MessageDigest md = null;
+        try {
+            md = MessageDigest.getInstance("SHA-512");
+
+        } catch (NoSuchAlgorithmException e) {
+            e.printStackTrace();
+        }
+
+        String usrMsg = salt.substring(8, 8) + username + salt.substring(16, 8);
+
+
+        byte[] _cUserName = md.digest(usrMsg.getBytes());
         resp = SendMessage(_cUserName, false);
         attempts = 0;
         while (resp.result == ResultCode.NOOP) {
@@ -251,11 +273,16 @@ public class EthConn {
             //Incorrect Salt length
             return ConnectResult.E_BADSALT;
         }
-        String cryptPwd = EncryptPassword(_pwd, resp.message);
+        String cryptPwd = EncryptPassword(password, resp.message);
         String pwdMsg = salt.substring(24, 8) + cryptPwd + salt.substring(0, 8);
         //Send encrypted pwd
-        //byte[] message = _hasher.ComputeHash(Encoding.UTF8.GetBytes(pwdMsg));
-        resp = SendMessage(pwdMsg, false);
+        byte[] message = null; //;_hasher.ComputeHash(Encoding.UTF8.GetBytes(pwdMsg));
+        try {
+            message = md.digest(usrMsg.getBytes(pwdMsg));
+        } catch (UnsupportedEncodingException e) {
+            e.printStackTrace();
+        }
+        resp = SendMessage(message, false);
         attempts = 0;
         while (resp.result == ResultCode.NOOP) {
             resp = SendMessage(pwdMsg, false);
@@ -266,24 +293,23 @@ public class EthConn {
             }
         }
         //Generate Encryption Keys
-       /* byte[] hash = _hasher.ComputeHash(Encoding.UTF8.GetBytes(salt.Substring(0, 16) + cryptPwd + salt.Substring(16, 16)));
-        key = hash.ToList().Take(32).ToArray();
-        ivIn = hash.ToList().Skip(32).Take(16).ToArray();
-        ivOut = hash.ToList().Skip(48).Take(16).ToArray();
+        byte[] hash = md.digest((salt.substring(0, 16) + cryptPwd + salt.substring(16, 16)).getBytes());
+        key = Arrays.copyOfRange(hash, 0, 32);
+        ivIn = Arrays.copyOfRange(hash, 32, 32 + 16);// hash.ToList().Skip(32).Take(16).ToArray();
+        ivOut = Arrays.copyOfRange(hash, 48, 48 + 16);//hash.ToList().Skip(48).Take(16).ToArray();
         //Setup AES Algorithm
-        aes = new AesCryptoServiceProvider();
+   /*     aes = new AesCryptoServiceProvider();
         aes.KeySize = 256;
         aes.Mode = CipherMode.CBC;
         aes.Padding = System.Security.Cryptography.PaddingMode.PKCS7;
         encrypt = aes.CreateEncryptor(key, ivOut);
-        decrypt = aes.CreateDecryptor(key, ivIn);
-       */
+        decrypt = aes.CreateDecryptor(key, ivIn);*/
         if (resp.result != ResultCode.SUCCESS) {
             isConnected = false;
             return ConnectResult.E_UNKNOWN;
         }
         try {
-            String response = DecryptReponse(resp.raw); //Manually decrypt response because message was not encrypted
+            String response = decodeAndDecrypt(resp.raw.toString()); //Manually decrypt response because message was not encrypted
             //Console.WriteLine(response);
             if (response == "access granted") {
                 _client.setSoTimeout(5000);
@@ -306,9 +332,13 @@ public class EthConn {
             commandId++;
             safeMessage = commandId + ":" + command + ":";
         }
+        byte[] safeMessageArray = safeMessage.getBytes(StandardCharsets.UTF_8);
+
         byte[] rawMessage = new byte[safeMessage.length() + packet.length];
-        //AudioFormat.Encoding.UTF8.GetBytes(safeMessage).CopyTo(rawMessage, 0);
-        //  packet.(rawMessage, safeMessage.length());
+
+        System.arraycopy(safeMessageArray, 0, rawMessage, 0, rawMessage.length);
+        System.arraycopy(packet, 0, rawMessage, safeMessage.length(), rawMessage.length);
+
         return SendMessage(rawMessage, encrypted);
     }
 
@@ -319,7 +349,7 @@ public class EthConn {
             commandId++;
             safeMessage = commandId + ":" + message;
         }
-        return SendMessage(safeMessage/*Encoding.UTF8.GetBytes(safeMessage)*/, encrypted);
+        return SendMessage(new String(safeMessage.getBytes(StandardCharsets.UTF_8)), encrypted);
     }
 
     public Response SendMessage(byte[] message, boolean encrypted) {
@@ -416,7 +446,7 @@ public class EthConn {
         }
 
         try {
-            int result =message[message.length-1];// (int) UInt32.Parse(Encoding.ASCII.GetString(message, 0, endOfCmd));
+            int result = message[message.length - 1];// (int) UInt32.Parse(Encoding.ASCII.GetString(message, 0, endOfCmd));
             return result;
         } catch (Exception e) {
             return -1;
@@ -525,7 +555,56 @@ public class EthConn {
         String fmtSalt = "$6$" + salt;
        /* String result = Crypter.Sha512.Crypt(password, fmtSalt);
         String[] res = result.Split('$');
-       */ return password;//res[3];
+       */
+        return password;//res[3];
+    }
+
+    private static String IV = "IV_VALUE_16_BYTE";
+    private static String PASSWORD = "PASSWORD_VALUE";
+    private static String SALT = "SALT_VALUE";
+
+    public String encryptAndEncode(String raw) {
+        try {
+            Cipher c = getCipher(Cipher.ENCRYPT_MODE);
+            byte[] encryptedVal = c.doFinal(getBytes(raw));
+            String s = getString(Base64.getEncoder().encode(encryptedVal));
+            return s;
+        } catch (Throwable t) {
+            throw new RuntimeException(t);
+        }
+    }
+
+    public String decodeAndDecrypt(String encrypted) throws Exception {
+        byte[] decodedValue = Base64.getDecoder().decode(getBytes(encrypted));
+        Cipher c = getCipher(Cipher.DECRYPT_MODE);
+        byte[] decValue = c.doFinal(decodedValue);
+        return new String(decValue);
+    }
+
+    private String getString(byte[] bytes) throws UnsupportedEncodingException {
+        return new String(bytes, "UTF-8");
+    }
+
+    private byte[] getBytes(String str) throws UnsupportedEncodingException {
+        return str.getBytes("UTF-8");
+    }
+
+    private Cipher getCipher(int mode) throws Exception {
+        Cipher c = Cipher.getInstance("AES/CBC/PKCS5Padding");
+        byte[] iv = getBytes(IV);
+        c.init(mode, generateKey(), new IvParameterSpec(iv));
+        return c;
+    }
+
+    private Key generateKey() throws Exception {
+        SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA1");
+        char[] password = PASSWORD.toCharArray();
+        byte[] salt = getBytes(SALT);
+
+        KeySpec spec = new PBEKeySpec(password, salt, 65536, 128);
+        SecretKey tmp = factory.generateSecret(spec);
+        byte[] encoded = tmp.getEncoded();
+        return new SecretKeySpec(encoded, "AES");
     }
 }
 
