@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
+import java.lang.reflect.Array;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -23,6 +24,7 @@ import java.security.spec.KeySpec;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.concurrent.Semaphore;
+import java.util.stream.IntStream;
 
 public class EthConn {
     private int commandId = 0;
@@ -395,8 +397,10 @@ public class EthConn {
                             recvResp = (cmdId == findCommandId(result.raw));
                             if (recvResp) {
                                 //Remove the command id from the results string
-                                result.raw = result.raw.toString().getBytes();
-                                result.message = result.message;//Encoding.UTF8.GetString(result.raw, 0, result.raw.Length);
+                                //    result.raw = Arrays.asList(result.raw).subList(0,String.valueOf(cmdId).length()+1).toArray() ;
+                                result.raw = Arrays.copyOfRange(result.raw, 0, String.valueOf(cmdId).length() + 1);
+                                //Arrays.asList(result.raw).subList(0,String.valueOf(cmdId).length()+1).toArray() ;
+                                result.message = getString(result.raw);//result.message;//Encoding.UTF8.GetString(result.raw, 0, result.raw.Length);
                             }
                         }
                     } else {
@@ -431,7 +435,7 @@ public class EthConn {
             if (commSemaphore.availablePermits() == 0) commSemaphore.release();
         }
         if (result.message != null)
-            result.message = result.message;//.trim("\0");
+            result.message = result.message.replace("\0", "");//.trim("\0");//.trim("\0");
         return result;
     }
 
@@ -446,7 +450,7 @@ public class EthConn {
         }
 
         try {
-            int result = message[message.length - 1];// (int) UInt32.Parse(Encoding.ASCII.GetString(message, 0, endOfCmd));
+            int result = Integer.valueOf(getString(Arrays.copyOfRange(message, 0, endOfCmd)));//)message[message.length - 1];// (int) UInt32.Parse(Encoding.ASCII.GetString(message, 0, endOfCmd));
             return result;
         } catch (Exception e) {
             return -1;
@@ -507,7 +511,7 @@ public class EthConn {
                 }
             }
         }
-        encrypted = message;
+        encrypted = encryptAndEncode(getString(message)).getBytes();
         // Create an Rijndael object
         // with the specified key and IV.
         // Create the streams used for encryption.
@@ -538,6 +542,12 @@ public class EthConn {
 
         byte[] buffer = new byte[response.length];
 
+        try {
+            buffer = decodeAndDecrypt(response.toString()).getBytes();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
         // Create the streams used for decryption.
     /*    using(MemoryStream msDecrypt = new MemoryStream(response))
         {
@@ -553,10 +563,9 @@ public class EthConn {
 
     private String EncryptPassword(String password, String salt) {
         String fmtSalt = "$6$" + salt;
-       /* String result = Crypter.Sha512.Crypt(password, fmtSalt);
-        String[] res = result.Split('$');
-       */
-        return password;//res[3];
+        String result = encryptAndEncode(fmtSalt);
+        String[] res = result.split("$");
+        return res[3];
     }
 
     private static String IV = "IV_VALUE_16_BYTE";
@@ -581,8 +590,13 @@ public class EthConn {
         return new String(decValue);
     }
 
-    private String getString(byte[] bytes) throws UnsupportedEncodingException {
-        return new String(bytes, "UTF-8");
+    private String getString(byte[] bytes) {
+        try {
+            return new String(bytes, "UTF-8");
+        } catch (UnsupportedEncodingException e) {
+            e.printStackTrace();
+            return null;
+        }
     }
 
     private byte[] getBytes(String str) throws UnsupportedEncodingException {
